@@ -139,9 +139,9 @@ const animateOnScroll = () => {
     });
     
     elements.forEach(element => {
-        element.style.opacity = '0';
-        element.style.transform = 'translateY(30px)';
-        element.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+        element.style.opacity = '1';
+        element.style.transform = 'translateY(0)';
+        element.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
         observer.observe(element);
     });
 };
@@ -384,7 +384,5 @@ document.addEventListener('keydown', (e) => {
 // ===== Service Worker Registration (for PWA) =====
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        // Uncomment when you have a service worker file
-        // navigator.serviceWorker.register('/sw.js');
     });
 }
