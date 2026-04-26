@@ -188,36 +188,117 @@ document.querySelectorAll('.project-card').forEach(card => {
 
 // ===== Form Handling with Validation =====
 const contactForm = document.getElementById('contactForm');
+const FORMSUBMIT_ENDPOINT = 'https://formsubmit.co/ajax/jeelbutani008@gmail.com';
+const WHATSAPP_NUMBER = '918511450340';
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function collectFormValues(form) {
+    const data = {};
+    new FormData(form).forEach((value, key) => {
+        data[key] = typeof value === 'string' ? value.trim() : value;
+    });
+    return data;
+}
+
+function validateContact(data) {
+    if (!data.name || data.name.length < 2) return 'Please enter your name.';
+    if (!EMAIL_REGEX.test(data.email || '')) return 'Please enter a valid email address.';
+    if (!data.subject) return 'Please add a subject.';
+    if (!data.message || data.message.length < 10) return 'Message should be at least 10 characters.';
+    if (data._honey) return 'Submission blocked.';
+    return null;
+}
+
+function setButtonLoading(btn, loadingHtml) {
+    btn.dataset.originalHtml = btn.innerHTML;
+    btn.innerHTML = loadingHtml;
+    btn.disabled = true;
+}
+
+function restoreButton(btn) {
+    if (btn.dataset.originalHtml) {
+        btn.innerHTML = btn.dataset.originalHtml;
+        delete btn.dataset.originalHtml;
+    }
+    btn.disabled = false;
+}
+
+async function sendViaEmail(data, button) {
+    setButtonLoading(button, '<i class="fas fa-spinner fa-spin"></i> Sending...');
+    try {
+        const response = await fetch(FORMSUBMIT_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({
+                Name: data.name,
+                Email: data.email,
+                Phone: data.phone || 'Not provided',
+                Subject: data.subject,
+                Message: data.message,
+                _subject: `Portfolio enquiry: ${data.subject}`,
+                _template: 'table',
+                _captcha: 'false'
+            })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || result.success === 'false') {
+            throw new Error(result.message || 'Mail server rejected the request.');
+        }
+        showNotification('Message delivered! I will be in touch shortly.', 'success');
+        contactForm.reset();
+    } catch (err) {
+        console.error('Email send failed:', err);
+        showNotification('Could not send right now. Try WhatsApp or email me directly.', 'error');
+    } finally {
+        restoreButton(button);
+    }
+}
+
+function sendViaWhatsApp(data, button) {
+    const lines = [
+        `Hi Jeel, I'm reaching out from your portfolio.`,
+        ``,
+        `Name: ${data.name}`,
+        `Email: ${data.email}`
+    ];
+    if (data.phone) lines.push(`Phone: ${data.phone}`);
+    lines.push(`Subject: ${data.subject}`, ``, `Message:`, data.message);
+
+    const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(lines.join('\n'))}`;
+    const whatsappWindow = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!whatsappWindow) {
+        showNotification('Pop-up blocked. Please allow pop-ups to open WhatsApp.', 'error');
+        return;
+    }
+    showNotification('Opening WhatsApp with your message ready to send.', 'success');
+    setButtonLoading(button, '<i class="fab fa-whatsapp"></i> Opened in WhatsApp');
+    setTimeout(() => restoreButton(button), 2500);
+}
+
 if (contactForm) {
     contactForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        
-        const formData = new FormData(contactForm);
-        const data = {};
-        formData.forEach((value, key) => {
-            data[key] = value;
-        });
-        
-        // Validate email
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(data.email)) {
-            showNotification('Please enter a valid email address', 'error');
+        const data = collectFormValues(contactForm);
+        const error = validateContact(data);
+        if (error) {
+            showNotification(error, 'error');
             return;
         }
-        
-        // Simulate sending (replace with actual API call)
-        const button = contactForm.querySelector('button[type="submit"]');
-        const originalText = button.innerHTML;
-        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
-        button.disabled = true;
-        
-        setTimeout(() => {
-            showNotification('Thank you for your message! I will get back to you soon.', 'success');
-            contactForm.reset();
-            button.innerHTML = originalText;
-            button.disabled = false;
-        }, 2000);
+        await sendViaEmail(data, e.submitter || contactForm.querySelector('[data-action="email"]'));
     });
+
+    const whatsappBtn = contactForm.querySelector('[data-action="whatsapp"]');
+    if (whatsappBtn) {
+        whatsappBtn.addEventListener('click', () => {
+            const data = collectFormValues(contactForm);
+            const error = validateContact(data);
+            if (error) {
+                showNotification(error, 'error');
+                return;
+            }
+            sendViaWhatsApp(data, whatsappBtn);
+        });
+    }
 }
 
 // ===== Notification System =====
